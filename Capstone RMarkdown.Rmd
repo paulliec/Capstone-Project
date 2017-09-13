@@ -1,0 +1,38 @@
+---
+output:
+  html_document: default
+---
+
+
+## 1 load libraries and breach report data
+
+```{r}
+library(readr)
+library(tidyr)
+library(dplyr)
+ breach_report <- read_csv("~/Downloads/breach_report.csv")
+# View(breach_report)this throws an error when i knit not sure why.  this is the error Quitting from lines 22-30 (Capstone_RMarkdown.Rmd) 
+#Error in check_for_XQuartz() : 
+ # X11 library is missing: install XQuartz from xquartz.macosforge.org
+#Calls: <Anonymous> ... withVisible -> eval -> eval -> View -> check_for_XQuartz
+#Execution halted
+```
+## 2 review and clean data
+review states for unique id...would expect 50 states but identified 53.  upon review, realized DC is in population as a territory as is Puerto Rico (PR)  Reviewed NA findings and these appear to be Puerto Ric0.  
+rename state column as US States and Territories to be more clear.  replaced is.na findings with PR
+review each column for blank or NA values
+
+```{r}
+
+summary(breach_report)
+unique(breach_report$State)
+breach_report %>% filter(State=="DC")
+breach_report %>% filter(is.na(State))
+breach_report %>% filter(State=="PR")
+breach_report<- rename(breach_report, State_Territory = State)
+breach_report$State_Territory[is.na(breach_report$State_Territory)]<-"PR"
+```
+## continue to review and clean as needed.  review each column or blank or NA values
+```{r}
+breach_report %>% filter(`Name of Covered Entity`==""|is.na(`Name of Covered Entity`))
+```
