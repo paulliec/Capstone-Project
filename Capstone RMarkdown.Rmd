@@ -11,11 +11,10 @@ library(readr)
 library(tidyr)
 library(dplyr)
  breach_report <- read_csv("~/Downloads/breach_report.csv")
-# View(breach_report)this throws an error when i knit not sure why.  this is the error Quitting from lines 22-30 (Capstone_RMarkdown.Rmd) 
-#Error in check_for_XQuartz() : 
- # X11 library is missing: install XQuartz from xquartz.macosforge.org
-#Calls: <Anonymous> ... withVisible -> eval -> eval -> View -> check_for_XQuartz
-#Execution halted
+ head(breach_report)
+
+ # use summary or head to display data
+
 ```
 ## 2 review and clean data
 review states for unique id...would expect 50 states but identified 53.  upon review, realized DC is in population as a territory as is Puerto Rico (PR)  Reviewed NA findings and these appear to be Puerto Ric0.  
@@ -33,6 +32,45 @@ breach_report<- rename(breach_report, State_Territory = State)
 breach_report$State_Territory[is.na(breach_report$State_Territory)]<-"PR"
 ```
 ## continue to review and clean as needed.  review each column or blank or NA values
+# check to see if there are any blank values 
+```{r}
+breach_report %>% filter(`Type of Breach`=="") %>% filter(`Web Description`=="") %>% filter(`Name of Covered Entity`=="") %>% filter(`Individuals Affected`=="") %>% filter(`Location of Breached Information`=="") %>% filter(`Breach Submission Date`=="") %>% filter(`Business Associate Present`=="") %>% filter(`Covered Entity Type`=="") %>% filter(`Covered Entity Type`=="") 
+```
+#no blank values.  
+#convert date column from character to date format m/d/y
+```{r}
+breach_report$`Breach Submission Date`<- as.Date(breach_report$`Breach Submission Date`,"%m/%d/%Y")
+```
+#review remaining columns.  replace NA values with "Unknown" for character values, 01/01/1970 for dates and 0 for numeric values
 ```{r}
 breach_report %>% filter(`Name of Covered Entity`==""|is.na(`Name of Covered Entity`))
+# head or summary for breach_report
+# summary(breach_report$Name of Covered Entity)
+breach_report %>% filter(`Individuals Affected`==""|is.na(`Individuals Affected`))
+# some are listed as NA so number is unknown.  replacing with values of 0
+breach_report$`Individuals Affected`[is.na(breach_report$`Individuals Affected`)]<-0
+# re run check for blank or na to make sure was corrected
+breach_report %>% filter(`Individuals Affected`==""|is.na(`Individuals Affected`))
+# check for na or blank values for breached info  replacing with unknown
+breach_report %>% filter(`Location of Breached Information`==""|is.na(`Location of Breached Information`))
+breach_report$`Location of Breached Information`[is.na(breach_report$`Location of Breached Information`)]<-"unknown"
+breach_report %>% filter(`Location of Breached Information`==""|is.na(`Location of Breached Information`))
+breach_report$`Type of Breach`[is.na(breach_report$`Type of Breach`)]<-"Unknown"
+breach_report$`Name of Covered Entity`[is.na(breach_report$`Name of Covered Entity`)]<-"Unknown"
+breach_report$`Covered Entity Type`[is.na(breach_report$`Covered Entity Type`)]<-"Unknown"
+#breach_report$`Breach Submission Date`[is.na(breach_report$`Breach Submission Date`)]<- "01/01/1070"
+breach_report$`Type of Breach`[is.na(breach_report$`Type of Breach`)]<-"Unknown"
+breach_report$`Business Associate Present`[is.na(breach_report$`Business Associate Present`)]<-"Unknown"
+breach_report$`Web Description`[is.na(breach_report$`Web Description`)]<-"Unknown"
+head(breach_report)
+
+```
+##start plotting (evil laugh)
+```{r}
+ggplot(breach_report, aes(x= Individuals Affected, y=Breach Submission Date))
+
+
+
+
+
 ```
