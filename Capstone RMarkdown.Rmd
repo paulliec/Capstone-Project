@@ -65,12 +65,20 @@ breach_report$`Web Description`[is.na(breach_report$`Web Description`)]<-"Unknow
 head(breach_report)
 
 ```
-##start plotting (evil laugh)
+##start plotting
 ```{r}
-ggplot(breach_report, aes(x= Individuals Affected, y=Breach Submission Date))
+
+library(ggplot2)
+library(dplyr)
 
 
+ggplot(breach_report,aes(x='Type of Breach', y= 'Covered Entity Type'))+geom_point()
+# this works and gets it totaled by day, how do i get it to be totaled by year?
+ aggregate(breach_report$`Individuals Affected`,by=list(breach_report$`Breach Submission Date`),sum)
+#this totals all of the breach reports...how do i get it to total by type of breach?
+breach_report %>% group_by('Type of Breach') %>% summarise(sum=sum(`Individuals Affected`))
+# totals by type of breach
+aggregate(breach_report$`Individuals Affected`, by =list(Type=breach_report$`Type of Breach`),FUN=sum)
 
-
-
+ggplot(breach_report,aes('Breach Submission Date',y='Individuals Affected'))+geom_line()
 ```
