@@ -10,8 +10,10 @@ output:
 library(readr)
 library(tidyr)
 library(dplyr)
- breach_report <- read_csv("~/Downloads/breach_report.csv")
- head(breach_report)
+library(ggplot2)
+ breach_report <- read.csv("~/Downloads/breach_report.csv")
+ head(breach_report,3)
+
 
  # use summary or head to display data
 
@@ -23,62 +25,80 @@ review each column for blank or NA values
 
 ```{r}
 
-summary(breach_report)
+summary(breach_report,3)
 unique(breach_report$State)
 breach_report %>% filter(State=="DC")
 breach_report %>% filter(is.na(State))
 breach_report %>% filter(State=="PR")
-breach_report<- rename(breach_report, State_Territory = State)
-breach_report$State_Territory[is.na(breach_report$State_Territory)]<-"PR"
+breach_report<- rename(breach_report, State.Territory = State)
+breach_report$State.Territory[is.na(breach_report$State.Territory)]<-"PR"
 ```
 ## continue to review and clean as needed.  review each column or blank or NA values
 # check to see if there are any blank values 
 ```{r}
-breach_report %>% filter(`Type of Breach`=="") %>% filter(`Web Description`=="") %>% filter(`Name of Covered Entity`=="") %>% filter(`Individuals Affected`=="") %>% filter(`Location of Breached Information`=="") %>% filter(`Breach Submission Date`=="") %>% filter(`Business Associate Present`=="") %>% filter(`Covered Entity Type`=="") %>% filter(`Covered Entity Type`=="") 
+breach_report %>% filter(`Type.of.Breach`=="") %>% filter(`Web.Description`=="") %>% filter(`Name.of.Covered.Entity`=="") %>% filter(`Individuals.Affected`=="") %>% filter(`Location.of.Breached.Information`=="") %>% filter(`Breach.Submission.Date`=="") %>% filter(`Business.Associate.Present`=="") %>% filter(`Covered.Entity.Type`=="") %>% filter(`Covered.Entity.Type`=="") 
 ```
 #no blank values.  
 #convert date column from character to date format m/d/y
 ```{r}
-breach_report$`Breach Submission Date`<- as.Date(breach_report$`Breach Submission Date`,"%m/%d/%Y")
+breach_report$`Breach.Submission.Date`<- as.Date(breach_report$`Breach.Submission.Date`,"%m/%d/%Y")
 ```
-#review remaining columns.  replace NA values with "Unknown" for character values, 01/01/1970 for dates and 0 for numeric values
+#review remaining columns.  replace NA values with "Unknown" for character values, 01/01/1970 for dates and 0 for numeric values(still deciding on the no value for numerics)
 ```{r}
-breach_report %>% filter(`Name of Covered Entity`==""|is.na(`Name of Covered Entity`))
+breach_report %>% filter(Name.of.Covered.Entity ==""|is.na(Name.of.Covered.Entity))
 # head or summary for breach_report
-# summary(breach_report$Name of Covered Entity)
-breach_report %>% filter(`Individuals Affected`==""|is.na(`Individuals Affected`))
+# summary(breach_report$Name of Covered Entity,3)
+breach_report %>% filter(`Individuals.Affected`==""|is.na(`Individuals.Affected`))
 # some are listed as NA so number is unknown.  replacing with values of 0
-breach_report$`Individuals Affected`[is.na(breach_report$`Individuals Affected`)]<-0
+#reconsidering....populating with 0 may not be correct....
+#breach_report$`Individuals.Affected`[is.na(breach_report$`Individuals.Affected`)]<-0
 # re run check for blank or na to make sure was corrected
-breach_report %>% filter(`Individuals Affected`==""|is.na(`Individuals Affected`))
+breach_report %>% filter(`Individuals.Affected`==""|is.na(`Individuals.Affected`))
 # check for na or blank values for breached info  replacing with unknown
-breach_report %>% filter(`Location of Breached Information`==""|is.na(`Location of Breached Information`))
-breach_report$`Location of Breached Information`[is.na(breach_report$`Location of Breached Information`)]<-"unknown"
-breach_report %>% filter(`Location of Breached Information`==""|is.na(`Location of Breached Information`))
-breach_report$`Type of Breach`[is.na(breach_report$`Type of Breach`)]<-"Unknown"
-breach_report$`Name of Covered Entity`[is.na(breach_report$`Name of Covered Entity`)]<-"Unknown"
-breach_report$`Covered Entity Type`[is.na(breach_report$`Covered Entity Type`)]<-"Unknown"
+breach_report %>% filter(`Location.of.Breached.Information`==""|is.na(`Location.of.Breached.Information`))
+breach_report$`Location.of.Breached.Information`[is.na(breach_report$`Location.of.Breached Information`)]<-"unknown"
+breach_report %>% filter(`Location.of.Breached.Information`==""|is.na(`Location.of.Breached.Information`))
+breach_report$`Type.of.Breach`[is.na(breach_report$`Type.of.Breach`)]<-"Unknown"
+breach_report$`Name.of.Covered Entity`[is.na(breach_report$`Name.of.Covered.Entity`)]<-"Unknown"
+breach_report$`Covered.Entity.Type`[is.na(breach_report$`Covered.Entity.Type`)]<-"Unknown"
 #breach_report$`Breach Submission Date`[is.na(breach_report$`Breach Submission Date`)]<- "01/01/1070"
-breach_report$`Type of Breach`[is.na(breach_report$`Type of Breach`)]<-"Unknown"
-breach_report$`Business Associate Present`[is.na(breach_report$`Business Associate Present`)]<-"Unknown"
-breach_report$`Web Description`[is.na(breach_report$`Web Description`)]<-"Unknown"
-head(breach_report)
+breach_report$`Type.of.Breach`[is.na(breach_report$`Type.of.Breach`)]<-"Unknown"
+breach_report$`Business.Associate.Present`[is.na(breach_report$`Business Associate Present`)]<-"Unknown"
+breach_report$`Web.Description`[is.na(breach_report$`Web Description`)]<-"Unknown"
+head(breach_report,3)
 
 ```
 ##start plotting
 ```{r}
+#following gives me an error can we talk through?
+#vapply(strsplit(breach_report$Type.of.Breach,",",fixed = TRUE),"[","",1)
+breach_report$Type.of.Breach<-sub(pattern = "^H.*",replacement = "Hacking/IT Incident" ,x=breach_report$Type.of.Breach)
+breach_report$Type.of.Breach<-sub(pattern = "^H.*",replacement = "Hacking/IT Incident" ,x=breach_report$Type.of.Breach)
+breach_report$Type.of.Breach<-sub(pattern = "^H.*",replacement = "Hacking/IT Incident" ,x=breach_report$Type.of.Breach)
+breach_report$Type.of.Breach<-sub(pattern = "^U.*",replacement = "Unauthorized Access/Disclosure", x=breach_report$Type.of.Breach)
+ breach_report$Type.of.Breach<-sub(pattern = "^T.*",replacement = "Theft",x=breach_report$Type.of.Breach)
+ breach_report$Type.of.Breach<-sub(pattern = "^L.*",replacement = "Loss",x=breach_report$Type.of.Breach)
+breach_report$Type.of.Breach<-sub(pattern = "^I.*",replacement = "Improper Use/Disposal",x=breach_report$Type.of.Breach)
+breach_report$Type.of.Breach<-sub(pattern = "^I.*",replacement = "Improper Disposal",x=breach_report$Type.of.Breach)
+ breach_report$Type.of.Breach<-sub(pattern = "^O.*",replacement = "Other",x=breach_report$Type.of.Breach)
+breach_report$Type.of.Breach[breach_report$Type.of.Breach==""]<-"Unknown"
+#following does what i want but how do i change colors, change order?
+#stuck on the histogram piece can we talk through?
+ ggplot(breach_report,aes(x=Type.of.Breach,fill=Individuals.Affected))+geom_bar()
+ ggplot(breach_report,aes(x=Covered.Entity.Type,fill=Individuals.Affected))+geom_bar()
+ # i want to do a series of histgrams...the example looks like i put the categorical variable on x but that gives me an error (and doesn't seem right for this)
+ggplot(breach_report,aes(Individuals.Affected, fill=Type.of.Breach))+geom_histogram()
 
-library(ggplot2)
-library(dplyr)
 
-
-ggplot(breach_report,aes(x='Type of Breach', y= 'Covered Entity Type'))+geom_point()
+#ggplot(breach_report,aes( x=(Type.of.Breach), y=(Covered.Entity.Type)))+geom_point()
 # this works and gets it totaled by day, how do i get it to be totaled by year?
- aggregate(breach_report$`Individuals Affected`,by=list(breach_report$`Breach Submission Date`),sum)
+ #aggregate(breach_reportIndividuals Affected`,by=list(breach_report$`Breach Submission Date`),sum)
 #this totals all of the breach reports...how do i get it to total by type of breach?
-breach_report %>% group_by('Type of Breach') %>% summarise(sum=sum(`Individuals Affected`))
+breach_report %>% group_by('Type.of.Breach') %>% summarise(sum=sum(`Individuals.Affected`))
 # totals by type of breach
-aggregate(breach_report$`Individuals Affected`, by =list(Type=breach_report$`Type of Breach`),FUN=sum)
+#aggregate(breach_report$`Individuals.Affected`, by =list(Type=breach_report$`Type.of.Breach`),FUN=sum)
 
-ggplot(breach_report,aes('Breach Submission Date',y='Individuals Affected'))+geom_line()
+ggplot(breach_report,aes(Breach.Submission.Date,y=Individuals.Affected))+geom_line()
+
+
 ```
