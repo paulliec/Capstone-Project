@@ -1,0 +1,167 @@
+---
+
+
+output:
+  html_document:
+    code_folding:  hide
+    
+    
+
+---
+
+
+## 1 load libraries and breach report data
+
+```{r}
+library(readr)
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+library(randomForest)
+ breach_report <- read.csv("~/Downloads/breach_report.csv")
+
+```
+## 2 review and clean data
+review states for unique id...would expect 50 states but identified 53.  upon review, realized DC is in population as a territory as is Puerto Rico (PR)  Reviewed NA findings and these appear to be Puerto Ric0.  
+rename state column as US States and Territories to be more clear.  replaced is.na findings with PR
+review each column for blank or NA values
+
+```{r}
+
+summary(breach_report,3)
+unique(breach_report$State)
+breach_report %>% filter(State=="DC")
+breach_report %>% filter(is.na(State))
+breach_report %>% filter(State=="PR")
+breach_report<- rename(breach_report, State.Territory = State)
+breach_report$State.Territory[is.na(breach_report$State.Territory)]<-"PR"
+```
+## continue to review and clean as needed.  review each column or blank or NA values
+# check to see if there are any blank values 
+```{r}
+breach_report %>% filter(`Type.of.Breach`=="") %>% filter(`Web.Description`=="") %>% filter(`Name.of.Covered.Entity`=="") %>% filter(`Individuals.Affected`=="") %>% filter(`Location.of.Breached.Information`=="") %>% filter(`Breach.Submission.Date`=="") %>% filter(`Business.Associate.Present`=="") %>% filter(`Covered.Entity.Type`=="") %>% filter(`Covered.Entity.Type`=="") 
+```
+#no blank values.  
+#convert date column from character to date format m/d/y
+```{r}
+breach_report$`Breach.Submission.Date`<- as.Date(breach_report$`Breach.Submission.Date`,"%m/%d/%Y")
+```
+#review remaining columns.  replace NA values with "Unknown" for character values, 01/01/1970 for dates and 0 for numeric values(still deciding on the no value for numerics)
+```{r}
+breach_report %>% filter(Name.of.Covered.Entity ==""|is.na(Name.of.Covered.Entity))
+# head or summary for breach_report
+# summary(breach_report$Name of Covered Entity,3)
+breach_report %>% filter(`Individuals.Affected`==""|is.na(`Individuals.Affected`))
+# some are listed as NA so number is unknown.  replacing with values of 0
+#reconsidering....populating with 0 may not be correct....
+#breach_report$`Individuals.Affected`[is.na(breach_report$`Individuals.Affected`)]<-0
+# re run check for blank or na to make sure was corrected
+breach_report %>% filter(`Individuals.Affected`==""|is.na(`Individuals.Affected`))
+# check for na or blank values for breached info  replacing with unknown
+breach_report %>% filter(`Location.of.Breached.Information`==""|is.na(`Location.of.Breached.Information`))
+breach_report$`Location.of.Breached.Information`[is.na(breach_report$`Location.of.Breached Information`)]<-"unknown"
+breach_report %>% filter(`Location.of.Breached.Information`==""|is.na(`Location.of.Breached.Information`))
+breach_report$`Type.of.Breach`[is.na(breach_report$`Type.of.Breach`)]<-"Unknown"
+breach_report$`Name.of.Covered Entity`[is.na(breach_report$`Name.of.Covered.Entity`)]<-"Unknown"
+breach_report$`Covered.Entity.Type`[is.na(breach_report$`Covered.Entity.Type`)]<-"Unknown"
+#breach_report$`Breach Submission Date`[is.na(breach_report$`Breach Submission Date`)]<- "01/01/1070"
+breach_report$`Type.of.Breach`[is.na(breach_report$`Type.of.Breach`)]<-"Unknown"
+breach_report$`Business.Associate.Present`[is.na(breach_report$`Business Associate Present`)]<-"Unknown"
+breach_report$`Web.Description`[is.na(breach_report$`Web Description`)]<-"Unknown"
+head(breach_report,3)
+
+```
+##preliminary data analysis
+```{r}
+#following gives me an error can we talk through? but now it doesn't haha
+breach_report$Primary.Breach<- vapply(strsplit(as.character(unlist(breach_report$Type.of.Breach)),",",fixed = TRUE),"[","",1)
+breach_report$Primary.Location.of.Breached.Info<-vapply(strsplit(as.character(unlist(breach_report$Location.of.Breached.Information)),",",fixed = TRUE),"[","",1)
+#establish years 
+years<-year(as.Date(breach_report$Breach.Submission.Date,"%y-%m-%d"))
+tapply(breach_report$Individuals.Affected,years,sum)
+
+#look at how indidivuals affected breaks down.
+summary(breach_report$Individuals.Affected)
+#note median and mean are very different
+sd(breach_report$Individuals.Affected,na.rm=TRUE)
+#standard deviation is very high.  let's look at what happens at the top/catastrophic end with; Individuals Affected greater than than 7800 individuals at an incidient
+#grouped by individuals affected by type of primary breach
+breach_report %>% filter(Individuals.Affected>7800) %>% group_by(Primary.Breach) %>% summarise(n_dist=n_distinct(Primary.Breach),totals=sum(Individuals.Affected))
+
+breach_report$Years<-year(as.Date(breach_report$Breach.Submission.Date,"%y-%m-%d"))
+breach_report %>% filter(Individuals.Affected>7800) %>% group_by(Years) %>% summarise(n_dist=n_distinct(Primary.Breach),totals=sum(Individuals.Affected))
+
+breach_report %>% filter(Individuals.Affected>7800) %>% group_by(Years) %>% group_by(Primary.Breach) %>%  summarise(n_dist=n_distinct(Primary.Breach),totals=sum(Individuals.Affected))
+
+#breach_report$Type.of.Breach<-sub(pattern = "^H.*",replacement = "Hacking/IT Incident" ,x=breach_report$Type.of.Breach)
+
+#breach_report$Type.of.Breach<-sub(pattern = "^U.*",replacement = "Unauthorized Access/Disclosure", x=breach_report$Type.of.Breach)
+ #breach_report$Type.of.Breach<-sub(pattern = "^T.*",replacement = "Theft",x=breach_report$Type.of.Breach)
+ #breach_report$Type.of.Breach<-sub(pattern = "^L.*",replacement = "Loss",x=breach_report$Type.of.Breach)
+#breach_report$Type.of.Breach<-sub(pattern = "^I.*",replacement = "Improper Use/Disposal",x=breach_report$Type.of.Breach)
+#breach_report$Type.of.Breach<-sub(pattern = "^I.*",replacement = "Improper Disposal",x=breach_report$Type.of.Breach)
+ #breach_report$Type.of.Breach<-sub(pattern = "^O.*",replacement = "Other",x=breach_report$Type.of.Breach)
+#breach_report$Type.of.Breach[breach_report$Type.of.Breach==""]<-"Unknown"
+#following does what i want but how do i change colors, change order?
+#stuck on the histogram piece can we talk through?
+ #ggplot(breach_report,aes(x=Type.of.Breach,fill=Individuals.Affected))+geom_bar()
+# filter(breach_report,Individuals.Affected<7800) %>% 
+# ggplot(aes(x=as.factor(Covered.Entity.Type),fill=as.factor(Individuals.Affected))+geom_bar()
+ # i want to do a series of histgrams...the example looks like i put the categorical variable on x but that gives me an error (and doesn't seem right for this)
+filter(breach_report,Individuals.Affected<7800) %>% 
+ggplot(aes(Individuals.Affected, fill=Primary.Breach))+geom_histogram()
+ #filter(breach_report,Individuals.Affected>1000000) %>% 
+#ggplot(aes(Individuals.Affected, fill=Type.of.Breach))+geom_histogram()
+
+ 
+
+#ggplot(breach_report,aes( x=(Type.of.Breach), y=(Covered.Entity.Type)))+geom_point()
+# this works and gets it totaled by day, how do i get it to be totaled by year?
+ #aggregate(breach_reportIndividuals Affected`,by=list(breach_report$`Breach Submission Date`),sum)
+#this totals all of the breach reports...how do i get it to total by type of breach?
+breach_report %>% filter(Individuals.Affected>7800) %>% group_by(Primary.Breach) %>% summarise(n_dist=n_distinct(Primary.Breach),totals=sum(Individuals.Affected))
+
+# totals by type of breach
+#aggregate(breach_report$`Individuals.Affected`, by =list(Type=breach_report$`Type.of.Breach`),FUN=sum)
+#ggplot(breach_report,aes(Breach.Submission.Date,Individuals.Affected))+geom_line()+scale_x_date(format = #"%y-%m-%d")+xlab("")+ylab("Individuals Affected")
+
+breach_report %>% filter(Individuals.Affected<7800) %>% group_by(Primary.Breach) %>% #summarise( totals=sum(Individuals.Affected)) %>%  
+  ggplot(aes(x=Primary.Breach,fill=Primary.Breach))+geom_bar()
+
+breach_report<-mutate(breach_report,Impact.Level=ifelse(Individuals.Affected<3000,"Low Impact","High.Impact"))
+head(breach_report)
+
+
+```
+```{r}
+#establish training data
+
+Train.Data<- breach_report %>% filter(Years==2016)
+Train.Data$Primary.Breach<-as.factor(Train.Data$Primary.Breach)
+Train.Data$Impact.Level<-as.factor(Train.Data$Impact.Level)
+Train.Data$Primary.Location.of.Breached.Info<- as.factor(Train.Data$Primary.Location.of.Breached.Info)
+
+smp_size<-floor(0.70*nrow(Train.Data))
+#don't understand what set seed does
+set.seed(123)
+train_ind<-sample(seq_len(nrow(Train.Data)),size=smp_size)
+Train<-Train.Data[train_ind,]
+Test<-Train.Data[-train_ind,]
+
+
+my.forest<- randomForest(as.factor(Impact.Level)~State.Territory+Covered.Entity.Type+Breach.Submission.Date+Business.Associate.Present+Primary.Breach+Primary.Location.of.Breached.Info,data=Train,importance=TRUE,ntree=1000)
+getTree(my.forest)
+varImpPlot(my.forest)
+
+my_prediction<-predict(my.forest,Test)
+my_solution<-data.frame(Primary.Location.of.Breached.Info= Test$Primary.Location.of.Breached.Info, Impact.Level=my_prediction)
+my_solution
+
+```
+
+
+
+
+
+
