@@ -1,0 +1,195 @@
+---
+
+
+output:
+  html_document:
+    code_folding:  hide
+    
+    
+
+---
+## **Summary**
+The Board of Directors at a regional health care provider has concerns over their potential exposure to a data breach leading to loss of patient information.  They asked a cyber security company I contract for to review publicly available data to determine what, if any, commonality there is among different data breaches.  If there are areas where it would make sense to focus, the organization’s IT security team will dig deeper in an attempt to mitigate their risk and exposure.
+Organizations covered under Health Insurance Portability and Accountability Act (HIPAA) are required under the HIPAA Breach Notification to “provide notification following  a breach of unsecured protected health information” (HIPAA, 2017).  Information regarding these breaches is collected and available at the Office of Civil Rights portal at www.hhs.gov.  Using this site, I collected data for ten years of data breaches.  
+
+
+## 1. load libraries and breach report data
+
+```{r,message=FALSE}
+library(readr)
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+library(rpart)
+library(rpart.plot)
+library(randomForest)
+library(caret)
+library(e1071)
+
+ breach_report <- read.csv("~/Downloads/breach_report.csv")
+#how do i get the ## attaching package, etc not to show up in my output?
+```
+## 2. review and clean data
+remove web description variable.  it's out of scope for this project and clutters the output
+review states for unique id...would expect 50 states but identified 53.  upon review, realized DC is in population as a territory as is Puerto Rico (PR)  Reviewed NA findings and these appear to be Puerto Ric0.  
+rename state column as US States and Territories to be more clear.  replaced is.na findings with PR
+review each column for blank or NA values
+
+```{r,message=FALSE}
+breach_report$Web.Description<-NULL
+
+#summary(breach_report,3)
+unique(breach_report$State)
+breach_report %>% filter(State=="DC") %>% slice(1:5)
+breach_report %>% filter(is.na(State)) %>% slice(1:5)
+breach_report %>% filter(State=="PR") %>% slice(1:5)
+breach_report<- rename(breach_report, State.Territory = State)
+breach_report$State.Territory[is.na(breach_report$State.Territory)]<-"PR"
+```
+## continue to review and clean as needed.  review each column or blank or NA values
+##check to see if there are any blank values 
+```{r,message=FALSE}
+breach_report %>% filter(`Type.of.Breach`=="") %>% filter(`Name.of.Covered.Entity`=="") %>% filter(`Individuals.Affected`=="") %>% filter(`Location.of.Breached.Information`=="") %>% filter(`Breach.Submission.Date`=="") %>% filter(`Business.Associate.Present`=="") %>% filter(`Covered.Entity.Type`=="") %>% filter(`Covered.Entity.Type`=="") %>% slice(1:5)
+```
+#no blank values.  
+#convert date column from character to date format m/d/y
+```{r,message=FALSE}
+breach_report$`Breach.Submission.Date`<- as.Date(breach_report$`Breach.Submission.Date`,"%m/%d/%Y")
+```
+#review remaining columns.  replace NA values with "Unknown" for character values, 01/01/1970 for dates and 0 for numeric values(still deciding on the no value for numerics)
+```{r}
+breach_report %>% filter(Name.of.Covered.Entity ==""|is.na(Name.of.Covered.Entity))
+
+breach_report %>% filter(`Individuals.Affected`==""|is.na(`Individuals.Affected`))
+# some are listed as NA so number is unknown.  replacing with values of 0
+#reconsidering....populating with 0 may not be correct....
+#breach_report$`Individuals.Affected`[is.na(breach_report$`Individuals.Affected`)]<-0
+# re run check for blank or na to make sure was corrected
+breach_report %>% filter(`Individuals.Affected`==""|is.na(`Individuals.Affected`))
+# check for na or blank values for breached info  replacing with unknown
+breach_report %>% filter(`Location.of.Breached.Information`==""|is.na(`Location.of.Breached.Information`))
+breach_report$`Location.of.Breached.Information`[is.na(breach_report$`Location.of.Breached Information`)]<-"unknown"
+breach_report %>% filter(`Location.of.Breached.Information`==""|is.na(`Location.of.Breached.Information`))
+breach_report$`Type.of.Breach`[is.na(breach_report$`Type.of.Breach`)]<-"Unknown"
+breach_report$`Name.of.Covered Entity`[is.na(breach_report$`Name.of.Covered.Entity`)]<-"Unknown"
+breach_report$`Covered.Entity.Type`[is.na(breach_report$`Covered.Entity.Type`)]<-"Unknown"
+#breach_report$`Breach Submission Date`[is.na(breach_report$`Breach Submission Date`)]<- "01/01/1070"
+breach_report$`Type.of.Breach`[is.na(breach_report$`Type.of.Breach`)]<-"Unknown"
+breach_report$`Business.Associate.Present`[is.na(breach_report$`Business Associate Present`)]<-"Unknown"
+
+#head(breach_report,3)
+
+```
+## 3. preliminary data analysis
+let's take a look at some summary numbers:
+number of individuals impacted over 10 years from 2007 to 2017
+
+```{r,message=FALSE}
+sum(breach_report$Individuals.Affected,na.rm = TRUE)
+```
+list of primary sources of the data breach:
+```{r,message=FALSE}
+unique(breach_report$Primary.Breach)
+```
+
+
+```{r,message=FALSE}
+#data provides primary, secondary and tertiary info for type of breach and location of breached information.  splitting out to just identify the primary source
+#do you have more material around vapply?  i think i get it but would like to read more/exercise better
+breach_report$Primary.Breach<- vapply(strsplit(as.character(unlist(breach_report$Type.of.Breach)),",",fixed = TRUE),"[","",1)
+breach_report$Primary.Location.of.Breached.Info<-vapply(strsplit(as.character(unlist(breach_report$Location.of.Breached.Information)),",",fixed = TRUE),"[","",1)
+#establish years 
+years<-year(as.Date(breach_report$Breach.Submission.Date,"%y-%m-%d"))
+tapply(breach_report$Individuals.Affected,years,sum)
+#look at how indidivuals affected breaks down.
+summary(breach_report$Individuals.Affected)
+#note median and mean are very different
+sd(breach_report$Individuals.Affected,na.rm=TRUE)
+#standard deviation is very high.  let's look at what happens at the top/catastrophic end with; Individuals Affected greater than than 7800 #individuals at an incident
+#grouped by individuals affected by type of primary breach
+breach_report %>% filter(Individuals.Affected>7800) %>% group_by(Primary.Breach) %>% summarise(n_dist=n_distinct(Primary.Breach),totals=sum(Individuals.Affected))
+
+breach_report$Years<-year(as.Date(breach_report$Breach.Submission.Date,"%y-%m-%d"))
+breach_report %>% filter(Individuals.Affected>7800) %>% group_by(Years) %>% summarise(n_dist=n_distinct(Primary.Breach),totals=sum(Individuals.Affected))
+
+breach_report %>% filter(Individuals.Affected>7800) %>% group_by(Years) %>% group_by(Primary.Breach) %>%  summarise(n_dist=n_distinct(Primary.Breach),totals=sum(Individuals.Affected))
+
+ # i want to do a series of histgrams...the example looks like i put the categorical variable on x but that gives me an error (and doesn't seem right for this)
+filter(breach_report,Individuals.Affected<7800) %>% 
+ggplot(aes(Individuals.Affected, fill=Primary.Breach))+geom_histogram()
+
+
+ 
+
+#ggplot(breach_report,aes( x=(Type.of.Breach), y=(Covered.Entity.Type)))+geom_point()
+# this works and gets it totaled by day, how do i get it to be totaled by year?
+ #aggregate(breach_reportIndividuals Affected`,by=list(breach_report$`Breach Submission Date`),sum)
+#this totals all of the breach reports...how do i get it to total by type of breach?
+breach_report %>% filter(Individuals.Affected>7800) %>% group_by(Primary.Breach) %>% summarise(n_dist=n_distinct(Primary.Breach),totals=sum(Individuals.Affected))
+
+# totals by type of breach
+#aggregate(breach_report$`Individuals.Affected`, by =list(Type=breach_report$`Type.of.Breach`),FUN=sum)
+#ggplot(breach_report,aes(Breach.Submission.Date,Individuals.Affected))+geom_line()+scale_x_date(format = #"%y-%m-%d")+xlab("")+ylab("Individuals Affected")
+
+breach_report %>% filter(Individuals.Affected<7800) %>% group_by(Primary.Breach) %>% #summarise( totals=sum(Individuals.Affected)) %>%  
+  ggplot(aes(x=Primary.Breach,fill=Primary.Breach))+geom_bar()
+
+breach_report<-mutate(breach_report,Impact.Level=ifelse(Individuals.Affected<3000,"Low Impact","High.Impact"))
+
+```
+
+# 4. establish training and test date.  We'll look at 2016 data and use 70% of the sample to train the model and 30% to test how it does.
+```{r,message=FALSE}
+#establish training data
+
+Train.Data<- breach_report %>% filter(Years==2016)
+Train.Data$Primary.Breach<-as.factor(Train.Data$Primary.Breach)
+Train.Data$Impact.Level<-as.factor(Train.Data$Impact.Level)
+Train.Data$Primary.Location.of.Breached.Info<- as.factor(Train.Data$Primary.Location.of.Breached.Info)
+
+smp_size<-floor(0.70*nrow(Train.Data))
+
+set.seed(123)
+train_ind<-sample(seq_len(nrow(Train.Data)),size=smp_size)
+Train<-Train.Data[train_ind,]
+Test<-Train.Data[-train_ind,]
+```
+# 5. let's look at a tree model first.
+
+```{r,message=FALSE}
+tree<-rpart(Impact.Level~Covered.Entity.Type+Breach.Submission.Date+Business.Associate.Present+Primary.Breach+Primary.Location.of.Breached.Info,data=Train)
+prp(tree)
+PredictTree<-predict(tree,newdata=Test,type="class")
+table(Test$Impact.Level,PredictTree)
+```
+# 5. results
+  looking at our confusion matrix, we can see that the tree is correct 56 times out of 99 times or 56.57% of the time.  This is the result of running one tree.  Let's take a look at what we get if we planted a forest of trees
+  
+  
+# 6. the random forest model:
+
+```{r,message=FALSE}
+
+my.forest<- randomForest(as.factor(Impact.Level)~Covered.Entity.Type+Breach.Submission.Date+Business.Associate.Present+Primary.Breach+Primary.Location.of.Breached.Info,data=Train,importance=TRUE,ntree=2000)
+getTree(my.forest)
+varImpPlot(my.forest)
+print(my.forest)
+my_prediction<-predict(my.forest,Test)
+my_solution<-data.frame(Primary.Location.of.Breached.Info= Test$Primary.Location.of.Breached.Info, Impact.Level=my_prediction)
+print(my_solution)
+table(my_solution$Impact.Level,my_prediction)
+
+
+# where the data is located seems to be the most important variable.  can this point to best return on investment would be to harden these areas?  how do i get numbers in the graph? so when attackers get into a network server it's bad news....more effort on the attack vectors used here vs laptops, etc.?
+ggplot(Train,aes(x=Primary.Location.of.Breached.Info, fill=Impact.Level))+geom_bar()
+
+
+```
+
+
+
+
+
+
+
